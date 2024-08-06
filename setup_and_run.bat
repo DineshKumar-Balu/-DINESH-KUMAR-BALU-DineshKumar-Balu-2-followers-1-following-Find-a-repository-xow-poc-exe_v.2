@@ -1,80 +1,51 @@
 @echo off
 setlocal
 
-:: Set path to portable Python
+:: Set paths
 set "python_path=%cd%\PortablePython\Python312"
-set "python_exe=%python_path%\python.exe"
+set "launcher_py=%cd%\launcher.py"
 
-:: Function to check if Python is available
-:CheckPython
-if not exist "%python_exe%" (
-    echo Python not found at %python_exe%. Downloading and installing...
-    mkdir "%python_path%"
-    call :DownloadPython
-) else (
-    echo Python found at %python_exe%.
-    goto :PostDownload
-)
+:: Print current directory and paths for debugging
+echo Current directory: %cd%
+echo Python path: %python_path%
+echo Launcher script: %launcher_py%
 
-:: Function to download and extract portable Python
-:DownloadPython
-echo Downloading portable Python...
-powershell -Command "Invoke-WebRequest -Uri https://www.python.org/ftp/python/3.12.0/python-3.12.0-embed-amd64.zip -OutFile python-3.12.0-embed-amd64.zip"
+:: Function to download and install full Python 3.12
+:InstallFullPython
+echo Downloading full Python installer...
+powershell -Command "Invoke-WebRequest -Uri https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe -OutFile python-3.12.0-amd64.exe"
 if %errorlevel% neq 0 (
-    echo Failed to download Python.
-    exit /b %errorlevel%
-)
-echo Extracting portable Python...
-powershell -Command "Expand-Archive -Path python-3.12.0-embed-amd64.zip -DestinationPath %python_path% -Force"
-if %errorlevel% neq 0 (
-    echo Failed to extract Python.
-    exit /b %errorlevel%
-)
-echo Python downloaded and extracted successfully.
-del python-3.12.0-embed-amd64.zip
-goto :PostDownload
-
-:PostDownload
-:: Check if virtual environment exists
-if not exist .\env (
-    echo Creating virtual environment...
-    "%python_exe%" -m venv .\env
-    if %errorlevel% neq 0 (
-        echo Failed to create virtual environment.
-        exit /b %errorlevel%
-    )
-)
-
-:: Activate the virtual environment
-call .\env\Scripts\activate.bat
-if %errorlevel% neq 0 (
-    echo Failed to activate virtual environment.
+    echo Failed to download Python installer.
     exit /b %errorlevel%
 )
 
-:: Ensure using the correct python executable in the virtual environment
-set "venv_python=%cd%\env\Scripts\python.exe"
-set "venv_pip=%cd%\env\Scripts\pip.exe"
-
-:: Upgrade pip
-echo Upgrading pip...
-"%venv_python%" -m pip install --upgrade pip
+echo Installing Python...
+start /wait python-3.12.0-amd64.exe /quiet InstallAllUsers=1 PrependPath=1
 if %errorlevel% neq 0 (
-    echo Failed to upgrade pip.
+    echo Failed to install Python.
     exit /b %errorlevel%
 )
 
-:: Install dependencies
-echo Installing dependencies...
-"%venv_pip%" install -r requirements.txt
-if %errorlevel% neq 0 (
-    echo Failed to install dependencies.
-    exit /b %errorlevel%
+del python-3.12.0-amd64.exe
+
+:: Ensure using the correct python executable
+echo Searching for Python executable...
+for /f "tokens=* delims=" %%P in ('where python') do (
+    set "global_python=%%P"
+    goto :FoundPython
 )
+
+:FoundPython
+if not defined global_python (
+    echo Python installation verification failed.
+    exit /b 1
+)
+
+echo Global Python executable: %global_python%
 
 :: Run the launcher.py script
 echo Running launcher.py...
-"%venv_python%" launcher.py
+"%global_python%" "%launcher_py%"
 if %errorlevel% neq 0 (
     echo Failed to run launcher.py.
     exit /b %errorlevel%
